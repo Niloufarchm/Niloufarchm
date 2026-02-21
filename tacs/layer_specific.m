@@ -49,7 +49,7 @@ cond(2).label    = 'Gamma tACS';
 cond(2).sessions = {'session6','session7'};
 
 cond(3).label    = 'Controls';
-cond(3).sessions = {'control_Giu','control_Cocoa','control_Cocoa2'};
+cond(3).sessions = {'control_G','control_Co','control_Co2'};
 
 D = cell(3,1);
 for k = 1:3
