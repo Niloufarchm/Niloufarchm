@@ -16,9 +16,9 @@ granCh.session9       = [13 14 15];
 granCh.session11      = [16 17 18];
 granCh.session12      = [22 23 24];
 
-granCh.control_Giu    = [4 5 6];
-granCh.control_Cocoa  = [15 16 17 18];
-granCh.control_Cocoa2 = [9 10 11 12];
+granCh.control_G    = [4 5 6];
+granCh.control_Co  = [15 16 17 18];
+granCh.control_Co2 = [9 10 11 12];
 
 granCh.session6       = [13 14 15]; % gamma
 granCh.session7       = [8 9 10];   % gamma
