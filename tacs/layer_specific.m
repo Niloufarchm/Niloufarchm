@@ -30,9 +30,9 @@ nCh.session9       = 24;
 nCh.session11      = 24;
 nCh.session12      = 24;
 
-nCh.control_Giu    = 24;
-nCh.control_Cocoa  = 32;
-nCh.control_Cocoa2 = 32;
+nCh.control_G    = 24;
+nCh.control_Co  = 32;
+nCh.control_Co2 = 32;
 
 nCh.session6       = 24;
 nCh.session7       = 24;
