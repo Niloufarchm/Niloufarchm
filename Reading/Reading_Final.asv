@@ -1,0 +1,264 @@
+% Final script: after the Globe Reading and Temporal Entropy
+% ReadingTable
+% filtered_R_saccades
+% R_revised_data_aggregated
+% Z_score_R
+
+
+% reading all the parameters
+columnNames = {'Group', 'Session', 'Round', 'Subject', 'Duration','Z_score_Duration', 'SaccadesPerSecond', 'NumFixationsOnDuration', 'MeanFixationDuration', 'SDFixationDuration', 'NumRegressions', 'RegressionsOnSaccade', 'MicrosaccadePerSecond', 'RegressionPerSecond', 'ProgressionPerSecond', 'SpatialEntropy', 'TemporalEntropy', 'ProgressiveAmplitudeMean', 'ProgressiveAmplitudeSD', 'RegressiveAmplitudeMean', 'RegressiveAmplitudeSD'};
+
+DataRows = [];
+num_groups = 6;
+for g = 1:num_groups
+    group_folder = sprintf('Group%d', g);
+    filenameOtherMetrics = fullfile(group_folder, 'OtherMetricsStruct.mat');
+    filenamenormalisedOtherMetrics = fullfile(group_folder, 'normalizedOtherMetrics.mat');
+
+    filenameSpatialEntropyStruct = fullfile(group_folder, 'SpatialEntropyStruct.mat');
+    filenameTemporalEntropyStruct = fullfile(group_folder, 'TemporalEntropyStruct.mat');
+    filenameAmplitude = fullfile(group_folder, 'AmplitudeTable.mat');
+
+    OtherMetrics = load(filenameOtherMetrics).OtherMetricsStruct;
+    normalizedOtherMetrics = load(filenamenormalisedOtherMetrics).normalizedOtherMetricsStruct;
+
+    SpatialEntropy = load(filenameSpatialEntropyStruct).SpatialEntropyStruct;
+    TemporalEntropy = load(filenameTemporalEntropyStruct).TemporalEntropyStruct;
+    AmplitudeData = load(filenameAmplitude).AmplitudeTable;
+
+    session = sprintf('S%d', ceil(g / 3)); 
+    round = sprintf('R%d', mod(g - 1, 3) + 1); 
+    subjects = fieldnames(OtherMetrics); 
+
+    for s = 1:length(subjects)
+        subject_name = subjects{s};
+        Metrics = OtherMetrics.(subject_name);
+        normMetric = normalizedOtherMetrics.(subject_name);
+        % Extracting Spatial Entropy 
+        entropy = NaN;
+        if isfield(SpatialEntropy, subject_name)
+            entropy = SpatialEntropy.(subject_name).Entropy;
+        end
+
+        % Extracting Temporal Entropy
+        temporalEntropy = NaN;
+        if isfield(TemporalEntropy, subject_name)
+            temporalEntropy = TemporalEntropy.(subject_name).TemporalEntropy;
+        end
+
+        % Extracting Amplitude Data - Find row matching subject name
+        amplitudeRow = AmplitudeData(strcmp(AmplitudeData.Subject, subject_name), :);
+        if ~isempty(amplitudeRow)
+            progressiveAmplitudeMean = amplitudeRow.ProgressiveAmplitudeMean;
+            progressiveAmplitudeSD = amplitudeRow.ProgressiveAmplitudeSD;
+            regressiveAmplitudeMean = amplitudeRow.RegressiveAmplitudeMean;
+            regressiveAmplitudeSD = amplitudeRow.RegressiveAmplitudeSD;
+        else
+            [progressiveAmplitudeMean, progressiveAmplitudeSD, regressiveAmplitudeMean, regressiveAmplitudeSD] = deal(NaN);
+        end
+
+        newRow = {g, session, round, subject_name, Metrics.Duration, normMetric.Duration, Metrics.saccadesPerSecond, Metrics.numfixationsOnDuration, Metrics.meanFixationDuration, Metrics.sdFixationDuration, Metrics.numRegressions, Metrics.regressionsOnSaccade, Metrics.microsaccadePerSecond, Metrics.regressionPerSecond, Metrics.ProgressionPerSecond, entropy, temporalEntropy, progressiveAmplitudeMean, progressiveAmplitudeSD, regressiveAmplitudeMean, regressiveAmplitudeSD};
+
+        DataRows = [DataRows; newRow];
+    end
+end
+
+ReadingTable = cell2table(DataRows, 'VariableNames', columnNames);
+
+save('ReadingTable.mat', 'ReadingTable');
+
+
+
+% all the reading saccades features
+
+columnNames = {'Group', 'Session', 'Round', 'Subject', 'Start', 'End', 'vPeak', 'Duration', 'StartX', 'StartY', 'EndX', 'EndY', 'Amplitude', 'DeltaX', 'DeltaY'};
+DataCells = cell(0, numel(columnNames)); 
+
+num_groups = 6;
+for g = 1:num_groups
+    group_folder = sprintf('Group%d', g);
+    filenamesaccadefeatures = fullfile(group_folder, 'saccadefeaturesStruct.mat');
+    saccadefeatures = load(filenamesaccadefeatures).saccadefeaturesStruct;
+    
+    session = sprintf('S%d', ceil(g / 3));
+    round = sprintf('R%d', mod(g - 1, 3) + 1);
+    subjects = fieldnames(saccadefeatures);
+
+    for s = 1:length(subjects)
+        subject_name = subjects{s};
+        Saccades = saccadefeatures.(subject_name);
+        subjectData = cell(numel(Saccades), numel(columnNames)); 
+        
+        for i = 1:numel(Saccades)
+            Metrics = Saccades(i);
+            subjectData(i, :) = {g, session, round, subject_name, Metrics.StartTime, Metrics.EndTime, Metrics.vPeak, Metrics.Duration, Metrics.StartX, Metrics.StartY, Metrics.EndX, Metrics.EndY, Metrics.Amplitude, Metrics.DeltaX, Metrics.DeltaY};
+        end
+        
+        DataCells = [DataCells; subjectData]; 
+    end
+end
+
+R_saccades = cell2table(DataCells, 'VariableNames', columnNames);
+
+save('R_saccades.mat', 'R_saccades');
+
+disp(R_saccades(1:5,:));
+
+
+
+R_saccades.av_vel = R_saccades.Amplitude ./ (R_saccades.Duration / 1000);
+R_saccades.ratio_av_Peak = R_saccades.av_vel ./ R_saccades.vPeak;
+
+R_saccades(R_saccades.vPeak > 800, :) = [];
+R_saccades(R_saccades.Amplitude > 14, :) = [];
+R_saccades(R_saccades.Amplitude < 1, :) = [];
+R_saccades(R_saccades.Duration > 60, :) = [];
+R_saccades(R_saccades.Duration < 10, :) = [];
+
+R_saccades((R_saccades.ratio_av_Peak < 0.5 | R_saccades.ratio_av_Peak > 0.9), :) = [];
+
+
+save('filtered_R_saccades.mat', 'R_saccades'); 
+
+
+% revise R_saccade: adding the regressive, progressive saccades...
+% Step 1: Assign Saccade Type based on DeltaX
+R_saccades.SaccadeType = repmat("Progressive", height(R_saccades), 1); % Default
+R_saccades.SaccadeType(R_saccades.DeltaX < 0) = "Regressive"; % Regressive for negative DeltaX
+
+% Step 2: Group by Subject, Session, and Round, and then count
+[grouped, grpNames] = findgroups(R_saccades(:, {'Subject', 'Session', 'Round'}));
+countFunction = @(x) [sum(strcmp(x, "Progressive")), sum(strcmp(x, "Regressive"))];
+combinedCounts = splitapply(countFunction, R_saccades.SaccadeType, grouped);
+totalSaccades = sum(combinedCounts, 2);
+
+% Create a table including both counts and the total
+R_sorted_counts = table(grpNames.Subject, grpNames.Session, grpNames.Round, ...
+                        combinedCounts(:,1), combinedCounts(:,2), totalSaccades, ...
+                        'VariableNames', {'Subject', 'Session', 'Round', 'ProgressiveCounts', 'RegressiveCounts', 'TotalSaccades'});
+
+% Step 3: Join with ReadingTable to add durations and calculate additional metrics
+R_joined_data = innerjoin(R_sorted_counts, ReadingTable(:, {'Subject', 'Session', 'Round', 'Duration', 'Z_score_Duration', 'SpatialEntropy', 'TemporalEntropy', 'MicrosaccadePerSecond'}), ...
+                                          'Keys', {'Subject', 'Session', 'Round'});
+
+% Calculate SaccadesPerSecond, NumFixations, NumFixationsOnDuration, RegressionsOnSaccade, RegressionPerSecond, and ProgressionPerSecond
+R_joined_data.SaccadesPerSecond = R_joined_data.TotalSaccades ./ R_joined_data.Duration;
+R_joined_data.NumFixations = R_joined_data.TotalSaccades + 1;
+R_joined_data.NumFixationsOnDuration = R_joined_data.NumFixations ./ R_joined_data.Duration;
+R_joined_data.RegressionsOnSaccade = R_joined_data.RegressiveCounts ./ R_joined_data.TotalSaccades;
+R_joined_data.RegressionPerSecond = R_joined_data.RegressiveCounts ./ R_joined_data.Duration;
+R_joined_data.ProgressionPerSecond = R_joined_data.ProgressiveCounts ./ R_joined_data.Duration;
+
+% For each row, calculate mean and SD of fixation durations, and amplitude of regressive and progressive saccades
+for i = 1:height(R_joined_data)
+    % Extract subject, session, and round for current row
+    filteredSaccades = R_saccades(strcmp(R_saccades.Subject, R_joined_data.Subject{i}) & ...
+                                  strcmp(R_saccades.Session, R_joined_data.Session{i}) & ...
+                                  strcmp(R_saccades.Round, R_joined_data.Round{i}), :);
+    % Sort by Start time
+    filteredSaccades = sortrows(filteredSaccades, 'Start');
+    
+    % Calculate fixation durations if there are at least two saccades
+    if height(filteredSaccades) > 1
+        fixationDurations = (filteredSaccades.Start(2:end) * 4) - (filteredSaccades.End(1:end-1) * 4);
+        R_joined_data.MeanFixationDuration(i) = mean(fixationDurations);
+        R_joined_data.SDFixationDuration(i) = std(fixationDurations);
+    end
+    
+    % Calculate metrics for regressive and progressive saccades
+    regressive = filteredSaccades(strcmp(filteredSaccades.SaccadeType, 'Regressive'), :);
+    progressive = filteredSaccades(strcmp(filteredSaccades.SaccadeType, 'Progressive'), :);
+    if height(regressive) > 0
+        R_joined_data.MeanAmpRegressive(i) = mean(regressive.Amplitude);
+        R_joined_data.SDAmpRegressive(i) = std(regressive.Amplitude);
+    end
+    if height(progressive) > 0
+        R_joined_data.MeanAmpProgressive(i) = mean(progressive.Amplitude);
+        R_joined_data.SDAmpProgressive(i) = std(progressive.Amplitude);
+    end
+end
+
+R_revised_data = R_joined_data;
+
+
+
+if iscell(R_revised_data.Subject)
+    numericSubjectIDs = cellfun(@(x) str2double(regexp(x, '\d+', 'match')), R_revised_data.Subject);
+else
+    numericSubjectIDs = R_revised_data.Subject; 
+end
+
+% Adding NumericSubjectID for sorting purposes
+R_revised_data.NumericSubjectID = numericSubjectIDs;
+
+% Adjust NumericSubjectID to ensure sorting starts from 2
+R_revised_data.NumericSubjectID = mod(numericSubjectIDs - 2, max(numericSubjectIDs)) + 1;
+
+% Sorting based on Session, Round, and then by NumericSubjectID
+R_revised_data = sortrows(R_revised_data, {'Session', 'Round', 'NumericSubjectID'});
+
+% Removing the NumericSubjectID column if it's no longer needed after sorting
+R_revised_data.NumericSubjectID = [];
+
+
+save('R_revised_data.mat', 'R_revised_data');
+
+
+% aggregate the data of the subjects: getting the mean between the data
+% from same subjects:
+filename = 'R_revised_data.mat';
+data = load(filename);
+varName = fieldnames(data);
+dataTable = data.(varName{1});
+
+% Determine columns for mean calculation (from the 4th column onwards)
+dataColumns = dataTable.Properties.VariableNames(4:end);
+
+uniqueSubjects = unique(dataTable.Subject);
+
+% Extract numbers from subject identifiers and sort them numerically
+subjectNumbers = cellfun(@(x) str2double(regexp(x, '\d+', 'match')), uniqueSubjects);
+[~, sortIdx] = sort(subjectNumbers);
+sortedSubjects = uniqueSubjects(sortIdx);
+
+variableTypes = ['string', repmat({'double'}, 1, numel(dataColumns))];
+R_revised_data_aggregated = table('Size', [0, numel(dataColumns) + 1], 'VariableTypes', variableTypes, 'VariableNames', ['Subject', dataColumns]);
+
+for i = 1:numel(sortedSubjects)
+    subj = sortedSubjects{i};
+    subjData = dataTable(strcmp(dataTable.Subject, subj), :);
+    
+    % Calculate the mean for each relevant column
+    meanValues = mean(table2array(subjData(:, dataColumns)), 1, 'omitnan');
+    
+    newRow = table(string(subj), 'VariableNames', {'Subject'});
+    for j = 1:numel(dataColumns)
+        newRow.(dataColumns{j}) = meanValues(j);
+    end
+    
+    R_revised_data_aggregated = [R_revised_data_aggregated; newRow];
+end
+
+newFilename = ['aggregated' filename];
+save(newFilename, 'R_revised_data_aggregated');
+
+
+
+% Z score:
+load('R_revised_data_aggregated.mat');
+
+Z_score_R = R_revised_data_aggregated;
+Z_score_R{:, 2:end} = 0; 
+
+for i = 2:width(R_revised_data_aggregated)
+    columnData = table2array(R_revised_data_aggregated(:, i));
+    
+    zScoresColumn = (columnData - nanmean(columnData)) / nanstd(columnData);
+    
+    
+    Z_score_R{:, i} = zScoresColumn;
+end
+
+newFileName = 'Z_score_R.mat';
+save(newFileName, 'Z_score_R');
+
