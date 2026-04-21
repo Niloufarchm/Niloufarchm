@@ -1,64 +1,3 @@
-"""
-LGN vs non-LGN Classifier  — v4
-=================================
-
-KEY DESIGN DECISIONS (based on your dataset)
-─────────────────────────────────────────────
-1. WAVEFORM FEATURES ONLY (5 features)
-   Tasks vary across files both in the Daumail reference AND within
-   Camelot (righteyeFF vs MOTIONTASK etc.), so firing statistics
-   (fr_mean_hz, isi_cv, etc.) are excluded from ALL classification.
-   Only spike shape features are used — they are task-independent.
-
-2. LEAVE-ONE-FILE-OUT CROSS-VALIDATION
-   ~2 units per file means units from the same file are NOT independent
-   (shared recording noise, same electrode position).  Splitting at the
-   unit level would leak information.  LOFO-CV holds out all units from
-   one file at a time → honest, unbiased performance estimate.
-
-3. FEW LABELLED EXAMPLES — what to expect
-   ~15-20 labelled units per class → the model will work but confidence
-   intervals on accuracy are wide (~±10-15%).  The confusion matrix from
-   LOFO-CV is your reliability check.  If it looks good, trust the
-   predictions on the unlabelled set.
-
-4. CLASS IMBALANCE is handled automatically via class_weight="balanced".
-   You don't need equal LGN / non-LGN counts.
-
-TWO COMPLEMENTARY STRATEGIES (combined into one final score)
-────────────────────────────────────────────────────────────
-  A) One-Class SVM trained on Daumail 2023 reference LGN waveforms.
-     No manual labels required.  Tells you how similar each unit's
-     waveform is to a published, verified LGN cell.
-
-  B) Supervised SVM trained on your manual labels (if provided).
-     Trained and evaluated entirely within Camelot, so recording
-     conditions are matched.  Requires manual_labels.csv.
-
-When both are available the final score is 40% A + 60% B.
-
-─────────────────────────────────────────────────────────────────────
-CREATING manual_labels.csv
-─────────────────────────────────────────────────────────────────────
-Save this file at:
-  <same folder as features.csv>/manual_labels.csv
-
-Format (one row per FILE you are sure about — NOT per unit):
-  file,is_lgn
-  cam_20260330_25350_righteyeFF_006,1
-  cam_20260408_28200_righteyeFF_005,1
-  cam_20260315_22100_righteyeFF_003,0
-  cam_20260320_19800_MOTIONTASK_001,0
-
-  file    = the 'file' column in features.csv  (no extension, no path)
-  is_lgn  = 1 (sure LGN)  |  0 (sure NOT LGN)
-  OMIT files you are unsure about → they become prediction targets
-
-Minimum: ~8 LGN files + ~8 non-LGN files  (~16-20 units/class)
-You do NOT need equal numbers — use all files you are confident about.
-Up to 3× more non-LGN than LGN is fine (class_weight handles it).
-─────────────────────────────────────────────────────────────────────
-"""
 
 import os
 import sys
@@ -102,10 +41,10 @@ RESULTS_DIR       = os.path.join(ML_RESULTS_DIR, "lgn_classification")
 #  FEATURES  — waveform shape only (task-independent)
 # ══════════════════════════════════════════════════════════════════════
 # Features used for CROSS-DATASET comparison (Camelot vs Daumail 2023).
-# Only 3 features are used here — the other two are amplitude-dependent:
-#   wf_ahp_depth   → stored as raw ADC counts in Daumail, µV in Camelot
-#                    → normalisation collapses Camelot median to 0 (too many NaN)
-#   wf_repol_slope → same problem
+# Only 3 features are used here
+#   wf_ahp_depth   :stored as raw ADC counts in Daumail, µV in Camelot
+#                    : normalisation collapses Camelot median to 0 (too many NaN)
+#   wf_repol_slope : same problem
 # The 3 features below are either time-based (ms) or pure ratios,
 # so they are truly amplitude-invariant across datasets.
 WF_FEATURES_CROSS = [
@@ -518,7 +457,7 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
     print("\n╔═══════════════════════════════════════════════════╗")
-    print("║   LGN vs non-LGN Classifier  v4                  ║")
+    print("║   LGN vs non-LGN Classifier                    ║")
     print("║   Features: waveform shape only (task-agnostic)  ║")
     print("╚═══════════════════════════════════════════════════╝\n")
 
@@ -552,7 +491,7 @@ def main():
     # wf_trough_asym is a ratio (scale-invariant).
     # wf_peak_trough is a ratio (scale-invariant).
     # Only wf_ahp_depth and wf_repol_slope are amplitude-dependent.
-    # We normalise those two specifically.
+    # We are normalise those two specifically.
     for amp_feat in ["wf_ahp_depth", "wf_repol_slope"]:
         if amp_feat in cam.columns:
             col  = cam[amp_feat].dropna()
@@ -564,7 +503,7 @@ def main():
           "normalised to median/MAD scale.\n")
 
     # ════════════════════════════════════════════════════════════════
-    #  STRATEGY A — One-Class SVM on Daumail 2023 reference
+    #   — One-Class SVM on Daumail 2023 reference
     # ════════════════════════════════════════════════════════════════
     print("═"*55)
     print("STRATEGY A — Cross-dataset waveform matching (OC-SVM)")
@@ -622,7 +561,7 @@ def main():
               f"({100*n_a/len(strategy_a_pred):.1f}% LGN)\n")
 
     # ════════════════════════════════════════════════════════════════
-    #  STRATEGY B — Supervised SVM from manual labels
+    #  Supervised SVM from manual labels
     # ════════════════════════════════════════════════════════════════
     print("═"*55)
     print("STRATEGY B — Supervised SVM (manual labels)")
@@ -885,7 +824,6 @@ def main():
         print("  ✗ No strategy produced results. Check paths and inputs.")
         sys.exit(1)
 
-    # Honour manual labels — override model where you are certain
     if "manual_label" in cam_out.columns:
         known = cam_out["manual_label"].notna()
         cam_out.loc[known, "final_lgn"] = \
